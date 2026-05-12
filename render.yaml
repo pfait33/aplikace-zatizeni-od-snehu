@@ -2,6 +2,7 @@ services:
   - type: web
     name: aplikace-zatizeni-od-snehu-api
     runtime: node
+    plan: free
     rootDir: backend
     buildCommand: npm ci && npm run build
     startCommand: npm run start
