@@ -34,6 +34,16 @@ VITE_API_BASE_URL=https://vase-verejne-api.example.com
 
 Bez této proměnné se frontend na GitHub Pages otevře, ale API dotazy na `/api/snow-load` nebudou mít backend.
 
+## Backend deploy
+
+Soubor `render.yaml` připravuje backend jako Render Web Service.
+
+Po nasazení backendu nastavte v GitHub repozitáři proměnnou `VITE_API_BASE_URL` na veřejnou URL backendu, například:
+
+```text
+https://aplikace-zatizeni-od-snehu-api.onrender.com
+```
+
 ## Lokální ověření
 
 ```bash

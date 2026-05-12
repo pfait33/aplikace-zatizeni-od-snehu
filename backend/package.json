@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc --noEmit",
+    "build": "tsc",
     "test:api": "tsx src/scripts/smokeTest.ts",
     "start": "node dist/server.js"
   },
