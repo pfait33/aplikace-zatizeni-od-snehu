@@ -82,9 +82,6 @@ export function App() {
           <p className="eyebrow">Orientační technická pomůcka</p>
           <h1>Zatížení sněhem podle parcely</h1>
         </div>
-        <p className="notice">
-          Výstup není autorizované statické posouzení. Pro projektovou dokumentaci ověřte hodnotu podle platné normy a oficiální mapy ČHMÚ.
-        </p>
       </section>
 
       <section className="workspace">
@@ -156,24 +153,6 @@ function ResultPanel({ result }: { result: SnowLoadResponse }) {
         </a>
       </div>
 
-      <div className="sources">
-        <h3>Zdroje dat</h3>
-        <p>{result.location.source}</p>
-        <p>{result.altitude.source}</p>
-        <p>{result.snowLoad.source}</p>
-        <p>{result.snowArea.source}</p>
-      </div>
-
-      {result.warnings.length > 0 && (
-        <div className="warnings">
-          {result.warnings.map((warning) => (
-            <p key={warning}>
-              <AlertTriangle size={18} />
-              <span>{warning}</span>
-            </p>
-          ))}
-        </div>
-      )}
     </section>
   );
 }
