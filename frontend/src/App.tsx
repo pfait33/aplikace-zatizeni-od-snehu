@@ -18,6 +18,7 @@ type SnowLoadResponse = {
     source: string;
     cadastralMapUrl: string;
     mapyComUrl: string;
+    chmiSnowMapUrl: string;
   };
   altitude: {
     value: number | null;
@@ -148,6 +149,10 @@ function ResultPanel({ result }: { result: SnowLoadResponse }) {
         <a href={result.location.mapyComUrl} target="_blank" rel="noreferrer">
           <ExternalLink size={18} />
           Mapy.com
+        </a>
+        <a href={result.location.chmiSnowMapUrl} target="_blank" rel="noreferrer">
+          <ExternalLink size={18} />
+          Sněhová mapa ČHMÚ
         </a>
       </div>
 

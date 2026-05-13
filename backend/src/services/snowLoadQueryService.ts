@@ -19,6 +19,7 @@ export type SnowLoadApiResponse = {
     source: string;
     cadastralMapUrl: string;
     mapyComUrl: string;
+    chmiSnowMapUrl: string;
   };
   altitude: {
     value: number | null;
@@ -77,7 +78,8 @@ export async function resolveSnowLoad(ku: string, parcel: string): Promise<SnowL
       lon: location.lon,
       source: parcelResult.locationSource,
       cadastralMapUrl: getCadastralParcelUrl(parcelResult.parcelId),
-      mapyComUrl: getMapyComUrl(location.lat, location.lon)
+      mapyComUrl: getMapyComUrl(location.lat, location.lon),
+      chmiSnowMapUrl: getChmiSnowMapUrl(location.lat, location.lon)
     },
     altitude: {
       value: altitude.value,
@@ -132,4 +134,16 @@ function getCadastralParcelUrl(parcelId: string): string {
 
 function getMapyComUrl(lat: number, lon: number): string {
   return `https://mapy.com/zakladni?x=${lon.toFixed(6)}&y=${lat.toFixed(6)}&z=17`;
+}
+
+function getChmiSnowMapUrl(lat: number, lon: number): string {
+  const params = new URLSearchParams({
+    lat: lat.toFixed(6),
+    lng: lon.toFixed(6)
+  });
+
+  // The current public map keeps coordinates in its form state and does not
+  // document a stable deep-link API. Keep the coordinates in the URL so the
+  // target location is explicit and future-compatible if deep links are added.
+  return `https://clima-maps.info/snehovamapa/?${params.toString()}`;
 }
