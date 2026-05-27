@@ -94,11 +94,11 @@ async function findParcelInCuzkWfs(ku: string, parcelNumber: string): Promise<Pa
     });
   }
 
-  const exactZonings = zonings.filter((zoning) => normalizeText(zoning.name) === normalizeText(ku));
+  const exactZonings = zonings.filter((zoning) => normalizeCadastralName(zoning.name) === normalizeCadastralName(ku));
   const candidates = exactZonings.length > 0 ? exactZonings : zonings;
 
   if (candidates.length > 1) {
-    throw new ApiError(409, "Pro zadaný název existuje více katastrálních území.", {
+    throw new ApiError(409, "Pro zadaný název existuje více katastrálních území. Zadejte přesný název včetně diakritiky.", {
       matches: candidates.map((zoning) => ({
         kuCode: zoning.code,
         name: zoning.name,
@@ -249,10 +249,10 @@ function parseGmlPosition(value: string): { lat: number; lon: number } | null {
 
 async function findParcelInLocalIndex(ku: string, parcelNumber: string): Promise<ParcelResult | null> {
   const rows = await readParcelIndex();
-  const kuNormalized = normalizeText(ku);
+  const kuNormalized = normalizeCadastralName(ku);
   const parcelNormalized = normalizeParcelNumber(parcelNumber);
   const matches = rows.filter((row) =>
-    normalizeText(row.kuName) === kuNormalized &&
+    normalizeCadastralName(row.kuName) === kuNormalized &&
     normalizeParcelNumber(row.parcelNumber) === parcelNormalized
   );
 
@@ -360,6 +360,14 @@ function normalizeParcelInput(value: string): string {
 
 function normalizeParcelNumber(value: string): string {
   return normalizeText(value).replace(/\s+/g, "");
+}
+
+function normalizeCadastralName(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase("cs-CZ")
+    .normalize("NFC")
+    .replace(/\s+/g, " ");
 }
 
 function roundCoordinate(value: number): number {
