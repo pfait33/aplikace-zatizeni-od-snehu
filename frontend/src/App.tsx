@@ -76,50 +76,68 @@ export function App() {
   }
 
   return (
-    <main className="app-shell">
-      <section className="intro">
+    <main className="shell" data-design="cag-workbench">
+      <header className="topbar">
+        <div className="brand-mark" aria-hidden="true">SNÍH</div>
         <div>
-          <p className="eyebrow">Orientační technická pomůcka</p>
-          <h1>Zatížení sněhem podle parcely</h1>
+          <p className="eyebrow">Technická pomůcka</p>
+          <h1>Aplikace zatížení od sněhu</h1>
         </div>
+      </header>
+
+      <section className="intro" aria-labelledby="page-title">
+        <p className="eyebrow">Orientační výpočet pro Českou republiku</p>
+        <h2 id="page-title">Zatížení sněhem <span>podle parcely</span></h2>
+        <p className="lede">Zadejte katastrální území a parcelní číslo. Aplikace dohledá polohu a vrátí charakteristické zatížení sněhem, sněhovou oblast i nadmořskou výšku.</p>
       </section>
 
-      <section className="workspace">
-        <form className="query-form" onSubmit={handleSubmit}>
-          <label>
-            <span>Katastrální území</span>
-            <input value={ku} onChange={(event) => setKu(event.target.value)} placeholder="např. Kvaň" />
-          </label>
+      <section className="workspace" aria-label="Výpočet zatížení sněhem">
+        <div className="card query-card">
+          <form className="query-form" onSubmit={handleSubmit}>
+            <label>
+              <span>Katastrální území</span>
+              <input value={ku} onChange={(event) => setKu(event.target.value)} placeholder="např. Kvaň" />
+            </label>
 
-          <label>
-            <span>Parcelní číslo</span>
-            <input value={parcel} onChange={(event) => setParcel(event.target.value)} placeholder="např. 223/2" />
-          </label>
+            <label>
+              <span>Parcelní číslo</span>
+              <input value={parcel} onChange={(event) => setParcel(event.target.value)} placeholder="např. 223/2" />
+            </label>
 
-          <button type="submit" disabled={loading}>
-            {loading ? <Loader2 className="spin" size={18} /> : <Search size={18} />}
-            Zjistit zatížení sněhem
-          </button>
-        </form>
+            <button type="submit" disabled={loading}>
+              {loading ? <Loader2 className="spin" size={18} /> : <Search size={18} />}
+              Zjistit zatížení sněhem
+            </button>
+          </form>
 
-        {error && (
-          <div className="message error">
-            <AlertTriangle size={20} />
-            <span>{error}</span>
-          </div>
-        )}
+          {error && (
+            <div className="message error" role="alert">
+              <AlertTriangle size={20} />
+              <span>{error}</span>
+            </div>
+          )}
+        </div>
 
-        {result && (
-          <ResultPanel result={result} />
-        )}
+        {result && <ResultPanel result={result} />}
       </section>
+
+      <section className="steps" aria-label="Jak výpočet funguje">
+        <div><span>01</span><strong>Zadejte parcelu</strong><p>Vyplňte název katastrálního území a parcelní číslo.</p></div>
+        <div><span>02</span><strong>Dohledáme polohu</strong><p>Souřadnice parcely ověříme vůči dostupným mapovým podkladům.</p></div>
+        <div><span>03</span><strong>Získáte hodnoty</strong><p>Výsledek zobrazí sk, sněhovou oblast a nadmořskou výšku.</p></div>
+      </section>
+
+      <footer>
+        <span>Aplikace zatížení od sněhu</span>
+        <span>Orientační výpočet · hodnotu ověřte podle platné normy</span>
+      </footer>
     </main>
   );
 }
 
 function ResultPanel({ result }: { result: SnowLoadResponse }) {
   return (
-    <section className="result-panel">
+    <section className="card result-panel" aria-live="polite">
       <div className="result-heading">
         <MapPin size={22} />
         <div>
@@ -152,7 +170,6 @@ function ResultPanel({ result }: { result: SnowLoadResponse }) {
           Sněhová mapa ČHMÚ
         </a>
       </div>
-
     </section>
   );
 }
