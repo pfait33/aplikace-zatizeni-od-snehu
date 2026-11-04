@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
+    "test": "tsx --test src/services/*.test.ts",
     "test:api": "tsx src/scripts/smokeTest.ts",
     "start": "node dist/server.js"
   },

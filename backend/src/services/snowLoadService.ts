@@ -42,13 +42,35 @@ export async function getSnowLoad(lat: number, lon: number, elevation: number | 
     return chmi;
   }
 
+  // Archived responses are keyed by the SAME public-map raster index, not
+  // distance to a sample point. Never interpolate or borrow a neighbouring cell.
+  if (chmi.archiveAllowed && isInSnowMapBounds(lat, lon)) {
+    const captures: unknown = JSON.parse(await fs.readFile(path.resolve(dirname, "../../data/snow-map-cells.json"), "utf8"));
+    if (Array.isArray(captures)) {
+      const index = getSnowMapIndex(lat, lon);
+      for (const cell of captures) {
+        if (!cell || cell.id !== index || !Number.isFinite(cell.lat) || !Number.isFinite(cell.lon) ||
+            getSnowMapIndex(cell.lat, cell.lon) !== index || cell.url !== defaultOnlineSnowLoadUrl ||
+            typeof cell.retrievedAt !== "string" || !Number.isFinite(Date.parse(cell.retrievedAt)) ||
+            !cell.response || cell.response.error !== "") continue;
+        const sk = parseOnlineNumber(cell.response.sk);
+        if (sk !== null && sk > 0) {
+          return {
+            sk,
+            source: `${chmi.source}; archiv ČHMÚ / clima-maps, buňka ${index}, získáno ${cell.retrievedAt}, ${cell.url} (nikoli živé ověření)`
+          };
+        }
+      }
+    }
+  }
   return getFallbackGridSnowLoad(lat, lon);
 }
 
-async function getChmiSnowLoad(lat: number, lon: number, _elevation: number | null): Promise<SnowLoadResult> {
+async function getChmiSnowLoad(lat: number, lon: number, _elevation: number | null): Promise<SnowLoadResult & { archiveAllowed?: boolean }> {
   if (process.env.SNOW_LOAD_ONLINE_ENABLED === "false") {
     return {
       sk: null,
+      archiveAllowed: true,
       source: "Online sněhová mapa je vypnutá nastavením SNOW_LOAD_ONLINE_ENABLED=false"
     };
   }
@@ -60,42 +82,56 @@ async function getChmiSnowLoad(lat: number, lon: number, _elevation: number | nu
     };
   }
 
-  try {
-    const response = await chmiClient.post(
-      process.env.SNOW_LOAD_ONLINE_URL || defaultOnlineSnowLoadUrl,
-      new URLSearchParams({
-        action: "getData",
-        id: String(getSnowMapIndex(lat, lon)),
-        coords: toCoordinateString(lat, lon)
-      }),
-      {
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded"
+  // This read-only form endpoint intermittently resets connections. Keep all
+  // attempts within one budget rather than multiplying the lookup timeout.
+  const deadline = Date.now() + 35000;
+  let archiveAllowed = false;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const response = await chmiClient.post(
+        process.env.SNOW_LOAD_ONLINE_URL || defaultOnlineSnowLoadUrl,
+        new URLSearchParams({
+          action: "getData",
+          id: String(getSnowMapIndex(lat, lon)),
+          coords: toCoordinateString(lat, lon)
+        }),
+        {
+          timeout: Math.max(1, deadline - Date.now()),
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
+          }
         }
+      );
+
+      const payload = response.data as Record<string, unknown>;
+      const error = typeof payload.error === "string" ? payload.error.trim() : "";
+      const sk = parseOnlineNumber(payload.sk);
+
+      if (error || sk === null) {
+        return {
+          sk: null,
+          source: error ? `Online sněhová mapa: ${error}` : "Online sněhová mapa nevrátila hodnotu sk"
+        };
       }
-    );
 
-    const payload = response.data as Record<string, unknown>;
-    const error = typeof payload.error === "string" ? payload.error.trim() : "";
-    const sk = parseOnlineNumber(payload.sk);
-
-    if (error || sk === null) {
       return {
-        sk: null,
-        source: error ? `Online sněhová mapa: ${error}` : "Online sněhová mapa nevrátila hodnotu sk"
+        sk,
+        source: "ČHMÚ / clima-maps digitální mapa zatížení sněhem na zemi, online dotaz getData.php"
       };
+    } catch (error) {
+      const transient = axios.isAxiosError(error) && (
+        ["ECONNRESET", "ETIMEDOUT", "ECONNABORTED", "EAI_AGAIN"].includes(error.code ?? "") ||
+        [502, 503, 504].includes(error.response?.status ?? 0)
+      );
+      archiveAllowed = transient;
+      if (!transient || attempt === 2 || Date.now() >= deadline) break;
     }
-
-    return {
-      sk,
-      source: "ČHMÚ / clima-maps digitální mapa zatížení sněhem na zemi, online dotaz getData.php"
-    };
-  } catch {
-    return {
-      sk: null,
-      source: "Online sněhová mapa není dostupná"
-    };
   }
+  return {
+    sk: null,
+    archiveAllowed,
+    source: "Online sněhová mapa není dostupná"
+  };
 }
 
 async function getFallbackGridSnowLoad(lat: number, lon: number): Promise<SnowLoadResult> {
@@ -189,14 +225,14 @@ function format2(value: number): string {
 }
 
 function parseOnlineNumber(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
     return value;
   }
 
-  if (typeof value !== "string") {
+  if (typeof value !== "string" || !value.trim()) {
     return null;
   }
 
   const parsed = Number(value.trim().replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : null;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
