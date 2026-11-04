@@ -5,3 +5,5 @@ frontend/dist/
 backend/dist/
 *.log
 .env
+__pycache__/
+*.pyc

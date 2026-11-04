@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
+    "test": "tsx --test src/services/*.test.ts",
     "test:api": "tsx src/scripts/smokeTest.ts",
     "start": "node dist/server.js"
   },
@@ -14,6 +15,9 @@
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "proj4": "^2.15.0"
+  },
+  "overrides": {
+    "qs": "6.17.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

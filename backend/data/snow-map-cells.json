@@ -1,0 +1,11 @@
+[
+  {
+    "id": 7032856,
+    "lat": 49.829316,
+    "lon": 13.584631,
+    "retrievedAt": "2026-11-04T12:54:28Z",
+    "url": "https://clima-maps.info/snehovamapa/getData.php",
+    "request": { "action": "getData", "id": "7032856", "coords": "49-49-46_13-35-05" },
+    "response": { "sk0": "0.83", "sk": "0.85", "mi": "0.31", "sigma": "0.20", "V": "0.65", "alpha": "1.53", "error": "" }
+  }
+]
