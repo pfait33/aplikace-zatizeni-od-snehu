@@ -16,6 +16,11 @@ as rollback. No public nginx route is installed for this new API.
   existing Render URL to `http://127.0.0.1:8096/api/snow-load`. Every other byte,
   owner/group, mode and extended attributes are preserved. Missing/duplicate,
   continued or malformed settings fail closed. Secrets are never printed.
+  Privileged file reads and env replacement traverse every ancestor from `/`
+  using held `O_DIRECTORY|O_NOFOLLOW` descriptors; each directory and input must
+  be root-owned and not group/world-writable. The env's xattrs are captured from
+  its checked file descriptor, and temp creation, replacement and directory
+  fsync use the same held parent FD. Symlink ancestors are never resolved away.
 - Root-only evidence/backup: `/opt/semapp-snow/evidence` (0700; backup 0600).
 - No database, frontend, nginx, integrations, timers or other profiles are touched.
   `semapp.service` is restarted once (readiness already built into its unit),
@@ -96,6 +101,16 @@ checks active state plus anonymous 401 before stopping/disabling/removing the
 new snow unit/current link. Releases and root-only evidence are retained.
 Render stays unchanged throughout. Rollback does not delete root-owned releases.
 Do not rerun the installer over retained migration evidence: it fails closed.
+Any existing evidence directory (even empty/partial) blocks a new migration.
+Preparation can fail after creating the revision directory or backup but before
+writing `state.json` or installing a unit. Such partial preparation does **not**
+delete backup/evidence/releases and is not a successful migration or restart:
+`PREPARATION_RECOVERY` says only that no env cutover was attempted. There is no
+automatic retry/cleanup facility. An operator must privately inspect the retained
+release, evidence, env, unit/current link and service state, preserve recovery
+material, and perform a separately reviewed manual cleanup before retrying.
+`--rollback` requires complete valid state/backup and cannot repair a missing
+`state.json`; never delete evidence blindly to bypass this precondition.
 
 SIGINT/SIGTERM during cutover triggers the same rollback. SIGKILL/power loss
 cannot run a handler: use the explicit rollback command after inspecting state.

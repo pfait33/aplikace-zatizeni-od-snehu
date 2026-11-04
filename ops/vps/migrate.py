@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """Scoped operator-only migration; no imports from application code."""
-import os, re, stat, tempfile
+import os, re, stat
 from pathlib import Path
 URL = 'http://127.0.0.1:8096/api/snow-load'
 
@@ -32,30 +32,76 @@ UNIT = Path('/etc/systemd/system/semapp-snow.service')
 BASELINE = '/opt/semapp/releases/9ddd3482302c3a37aa464025c563ebdc04b944d7-scoped'
 SERVICE = 'semapp-snow.service'
 
-def read_regular(path, trusted=True):
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-    with os.fdopen(fd, 'rb') as stream:
-        s = os.fstat(stream.fileno())
-        if not stat.S_ISREG(s.st_mode) or s.st_nlink != 1: raise ValueError('unsafe file')
-        if trusted and (s.st_uid != 0 or s.st_mode & 0o022): raise ValueError('untrusted file')
-        return stream.read(), s
+from contextlib import contextmanager
+import secrets
+
+def require_root_owner(s):
+    if s.st_uid != 0: raise ValueError('untrusted owner')
+
+def open_root():
+    return os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+
+@contextmanager
+def trusted_parent(path):
+    path = Path(path)
+    if not path.is_absolute() or '..' in path.parts or path == Path('/'):
+        raise ValueError('absolute non-traversing file path required')
+    directory = open_root()
+    try:
+        for component in (*path.parts[1:-1], None):
+            s = os.fstat(directory)
+            require_root_owner(s)
+            if not stat.S_ISDIR(s.st_mode) or s.st_mode & 0o022:
+                raise ValueError('untrusted ancestor')
+            if component is not None:
+                child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+                os.close(directory); directory = child
+        yield directory, path.name
+    finally:
+        os.close(directory)
+
+def checked_regular(fd):
+    s = os.fstat(fd)
+    if not stat.S_ISREG(s.st_mode) or s.st_nlink != 1: raise ValueError('unsafe file')
+    require_root_owner(s)
+    if s.st_mode & 0o022: raise ValueError('untrusted file')
+    return s
+
+def read_regular(path):
+    with trusted_parent(path) as (directory, name):
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+        with os.fdopen(fd, 'rb') as stream:
+            s = checked_regular(stream.fileno())
+            return stream.read(), s
 
 def atomic(path, data, metadata):
-    attributes = {key: os.getxattr(path,key,follow_symlinks=False) for key in os.listxattr(path,follow_symlinks=False)}
-    fd, tmp = tempfile.mkstemp(prefix='.snow-', dir=path.parent)
-    try:
-        with os.fdopen(fd, 'wb') as stream:
-            stream.write(data)
-            os.fchown(stream.fileno(), metadata.st_uid, metadata.st_gid)
-            for key,value in attributes.items(): os.setxattr(stream.fileno(),key,value)
-            os.fchmod(stream.fileno(), stat.S_IMODE(metadata.st_mode))
-            stream.flush(); os.fsync(stream.fileno())
-        os.replace(tmp, path)
-        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
-        try: os.fsync(directory)
-        finally: os.close(directory)
-    finally:
-        if os.path.exists(tmp): os.unlink(tmp)
+    # Read metadata and replace through the SAME validated, held directory FD.
+    with trusted_parent(path) as (directory, name):
+        source = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+        try:
+            current = checked_regular(source)
+            if (current.st_uid, current.st_gid, stat.S_IMODE(current.st_mode)) != (
+                    metadata.st_uid, metadata.st_gid, stat.S_IMODE(metadata.st_mode)):
+                raise ValueError('env metadata drift')
+            attributes = {key: os.getxattr(source, key) for key in os.listxattr(source)}
+        finally: os.close(source)
+        tmp = '.snow-' + secrets.token_hex(16)
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory)
+        try:
+            with os.fdopen(fd, 'wb') as stream:
+                stream.write(data)
+                stream.flush()
+                os.fchown(stream.fileno(), metadata.st_uid, metadata.st_gid)
+                os.fchmod(stream.fileno(), stat.S_IMODE(metadata.st_mode))
+                for key in os.listxattr(stream.fileno()):
+                    if key not in attributes: os.removexattr(stream.fileno(),key)
+                for key,value in attributes.items(): os.setxattr(stream.fileno(),key,value)
+                os.fsync(stream.fileno())
+            os.replace(tmp, name, src_dir_fd=directory, dst_dir_fd=directory)
+            os.fsync(directory)
+        finally:
+            try: os.unlink(tmp, dir_fd=directory)
+            except FileNotFoundError: pass
 
 def transaction(operation):
     try:
@@ -113,7 +159,7 @@ class Migration:
         if ctl('show','semapp.service','-p','DropInPaths','--value'): raise RuntimeError('unreviewed SEMAPP drop-ins')
         if ctl('is-active','semapp.service')!='active': raise RuntimeError('SEMAPP inactive')
         anonymous_denied()
-        for p in (UNIT, BASE/'current', self.backup):
+        for p in (UNIT, BASE/'current', BASE/'evidence'):
             if os.path.lexists(p): raise RuntimeError('migration already exists; do not overwrite')
         if ctl('show', SERVICE, '-p','LoadState','--value') != 'not-found': raise RuntimeError('snow unit already exists')
         with socket.socket() as s: s.bind(('127.0.0.1',8096))
@@ -150,7 +196,10 @@ class Migration:
                 UNIT.unlink()
             ctl('daemon-reload')
             if os.path.lexists(BASE/'current'): (BASE/'current').unlink()
-        print('ROLLBACK_OK: original Render env and service restored; retained private evidence')
+        if self.changed:
+            print('ROLLBACK_OK: original Render env and service restored; retained private evidence')
+        else:
+            print('PREPARATION_RECOVERY: env cutover not attempted; retained evidence/releases require manual inspection and cleanup')
 
     def operation(self, step):
         if step=='rollback': return self.rollback()
