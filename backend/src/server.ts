@@ -1,9 +1,10 @@
 import cors from "cors";
+import { listenConfig } from './listenConfig.js';
 import express from "express";
 import { snowLoadRouter } from "./routes/snowLoadRoute.js";
 
 const app = express();
-const port = Number(process.env.PORT ?? 3001);
+const { host, port } = listenConfig(process.env);
 const allowedOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173,https://pfait33.github.io")
   .split(",")
   .map((origin) => origin.trim())
@@ -27,6 +28,6 @@ app.get("/health", (_req, res) => {
 
 app.use("/api/snow-load", snowLoadRouter);
 
-app.listen(port, () => {
-  console.log(`Snow load backend listening on http://localhost:${port}`);
+app.listen(port, host, () => {
+  console.log(`Snow load backend listening on http://${host}:${port}`);
 });

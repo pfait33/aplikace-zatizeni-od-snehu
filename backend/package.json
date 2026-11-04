@@ -16,6 +16,9 @@
     "express": "^4.21.2",
     "proj4": "^2.15.0"
   },
+  "overrides": {
+    "qs": "6.17.1"
+  },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
